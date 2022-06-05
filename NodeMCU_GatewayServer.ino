@@ -37,7 +37,7 @@ void setup()
 
   auto app = ArduinoExpress();
 
-  app.use([](Req &req, Res &res, Next next)->void*{
+  app.use([](Req &req, Res &res, Next next)->void*{ // FIXME: Add this middleware to ArdiunoExpress
     DynamicJsonBuffer buffer(200);
     if(buffer.parseObject(req.body).success()){
       next();
@@ -46,9 +46,19 @@ void setup()
     }
   });
 
-  app.use(&routers::any);
-  app.use(&routers::users);
-  app.use("/admin", &routers::admin);
+  app.get("/", [](Req &req, Res &res)->void*{
+    Serial.println("Root got request");
+    res.send(200, "text/plain", "Hello World!");
+  });
+
+  app.post("/raise", [](Req &req, Res &res)->void*{
+    Serial.println("Raise got request");
+    res.send(200, "text/plain", "Hello AlarmInitiate!");
+  });
+
+  // app.use(&routers::any);
+  // app.use(&routers::users);
+  // app.use("/admin", &routers::admin);
 
 
   app.listen(80, []()->void{}); // TODO: Only provide this callback as an extra feature

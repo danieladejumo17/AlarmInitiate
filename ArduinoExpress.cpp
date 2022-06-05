@@ -42,10 +42,15 @@ bool RouteCallback::match(const String &prefix, const HTTP_Request &req) const
 
 void RouteCallback::execute(const String &prefix, HTTP_Request &req, HTTP_Response &res, Next next)
 {
+  Serial.println(_path + "got request");
+  // If request is matched, the callback is executed and the callback chain is broken
+  // else, the next callback is called
   if(match(prefix, req)){
+    Serial.println(_path + "matched request");
     executeCallbacks(req, res);
+  } else {
+    next();
   }
-  next();
 }
 
 
@@ -82,6 +87,8 @@ void ArduinoExpressRouter::addRouteCallback(const RouteCallback& routeCallback)
   if(this->_routeCallbacks.size() < MAX_ROUTECALLBACKS_COUNT){
     this->_routeCallbacks.push_back(routeCallback);
     addAllCallback(&_routeCallbacks.back()); 
+  }else{
+    // FIXME: Throw an error
   }
 }
 
@@ -90,6 +97,8 @@ void ArduinoExpressRouter::addAllCallback(Callback* callback)
 {
   if(this->_allCallbacks.size() < MAX_CALLBACKS_COUNT){
     this->_allCallbacks.push_back(callback);   
+  }else{
+    // FIXME: Throw an error
   }
 }
 
@@ -115,10 +124,17 @@ void ArduinoExpressRouter::executeNext(const String& prefix, HTTP_Request &req, 
 void ArduinoExpressRouter::execute(const String& prefix, HTTP_Request &req, HTTP_Response &res, Next next)
 {
   if(match(prefix, req)){
-    executeNext(prefix, req, res);
+    // reset the _currentCallback to 0
     _currentCallback = 0;
+
+    // start executing the callback chain
+    executeNext(prefix, req, res);
   }
-  next();
+  
+  // If no callback in this router has handled the request, call the next on the callback chain
+  // else, the callback chain is broken
+  if (!res.responseSent())
+    next();
 }
 
 
@@ -127,6 +143,8 @@ void ArduinoExpressRouter::use(const String &path, void *(*callback)(HTTP_Reques
   if(_middlewareCallbacks.size() < MAX_MIDDLEWARECALLBACKS_COUNT){
     this->_middlewareCallbacks.push_back(MiddlewareCallback{path, callback});
     addAllCallback(&_middlewareCallbacks.back());
+  }else{
+    // FIXME: Throw an error
   }
 }
 
@@ -147,7 +165,7 @@ void ArduinoExpress::listen(int port, std::function<void()> callback)
 
   while(true){
     execute();
-    // callback();
+    //if (callback) callback();   // FIXME: Enable this, use a default of nullptr
   }
 }
 
@@ -157,9 +175,11 @@ void ArduinoExpress::execute()
     WiFiClient client = this->_server.available();
     this->_client = &client;
 
+    // if there's a new client
     if(*_client){
       this->_req.clear();
       this->_res.clear();
+
       parseRequest();
       this->_res = HTTP_Response{this->_client};
 
@@ -171,7 +191,7 @@ void ArduinoExpress::execute()
 
       // Confirm a response has being sent. If not, send one.
       if (!this->_res.responseSent()){
-        this->_res.send(404, "text/plain", "The requested resource was not found.");
+        this->_res.send(500, "text/plain", "No response");
       }
       
       // Disconnect the client
@@ -243,6 +263,8 @@ void ArduinoExpress::use(const String &path, ArduinoExpressRouter *router)
     this->_routers.push_back(router);
     this->_routers.back()->setRoutePrefix(path);
     addAllCallback(this->_routers.back());
+  }else{
+    // FIXME: Throw an error
   }
 }
 

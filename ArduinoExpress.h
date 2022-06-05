@@ -12,6 +12,8 @@ using Res = HTTP_Response;
 
 // Next is an alias for void(*)(), which is a function that takes no arguments and returns void
 using Next = std::function<void()>;
+using CallbackF = std::function<void*(Req&, Res&)>;
+using MiddlewareF = std::function<void*(Req&, Res&, Next)>;
 
 /* Inherited by RouteCallback, MiddlewarCallback and the ArduinoExpressRouter which implement 
    * the pure virtual execute() method.
@@ -30,10 +32,17 @@ struct Callback{
 };
 
 
+/* The Route callback encapsulates a single endpoint in the ArduinoExpressRouter.
+  * This include the path, the HTTP method, middleware(s) and the actual endpoint callback.
+  * Note: The path is the relative path to the endpoint in the router where this callback belongs.
+*/
 struct RouteCallback: public Callback{
   private:
-    String _path;
-    HTTP_Method _method;
+    String _path; // the path this callback listens to
+    HTTP_Method _method;  // the http method this callback listens to
+    // This can be different from the complete HTTP request route if a router with a prefix is used
+    // with this callback.
+
     void *(*_middleware)(Req&, Res&) = nullptr;
     void *(*_callback)(Req&, Res&) = nullptr;
   
@@ -61,7 +70,8 @@ struct RouteCallback: public Callback{
     
 
     /* returns the path this callback is created on. 
-      * This can be different from the complete HTTP request route if a router with a prefix is used.
+      * This can be different from the complete HTTP request route if a router with a prefix is used
+      * with this callback.
       * */
     const String& path() const {return this->_path;}
 
@@ -79,18 +89,41 @@ struct RouteCallback: public Callback{
 };
 
 
+/* A middleware acts on a request before the request reaches it's endpoint. It can modify the 
+  * request and/or the response, or terminate the request - by sending the response before it get's
+  * to its endpoint.
+  * The MiddlewareCallback encapsulates a single middleware in the ArduinoExpressRouter.
+  * This include the path and the actual middleware callback.
+  * Note: The path is the relative path this middleware acts on in the router where it belongs.
+*/
 struct MiddlewareCallback: public Callback{
   private:
-    String _path;
-    void *(*_callback)(HTTP_Request&, HTTP_Response&, Next) = nullptr;
+    String _path; // the path this middleware acts on
+    void *(*_callback)(Req&, Res&, Next) = nullptr;
 
   public:
     MiddlewareCallback() {}
-    MiddlewareCallback(const String& path, void *(*callback)(HTTP_Request&, HTTP_Response&, Next)): _path{path}, _callback{callback} {}
+    MiddlewareCallback(const String& path, void *(*callback)(Req&, Res&, Next))
+      : _path{path}, _callback{callback} {}
+
+    // const String& path()
+    // returns the path this middleware acts on
     const String& path() const {return this->_path;}
-    void executeCallbacks(HTTP_Request &req, HTTP_Response &res, Next next) {this->_callback(req, res, next);}
-    bool match(const String &prefix, const HTTP_Request &req) const {return req.route.startsWith(prefix + this->_path) || (prefix + this->_path).isEmpty();}
-    void execute(const String &prefix, HTTP_Request &req, HTTP_Response &res, Next next) 
+
+    // void executeCallback(req, res, next)
+    // executes the middleware callback
+    void executeCallbacks(Req &req, Res &res, Next next) {this->_callback(req, res, next);}
+    
+    // void match(prefix, req)
+    // returns true if the request's route matches this middleware (in the router it belongs)
+    bool match(const String &prefix, const Req &req) const 
+    {
+      return req.route.startsWith(prefix + this->_path) || (prefix + this->_path).isEmpty();
+    }
+    
+    // void execute(prefix, req, res, next)
+    // compares the request's route to the middleware's path, and if it matches, executes the middleware
+    void execute(const String &prefix, Req &req, Res &res, Next next) 
     {
       if (match(prefix, req)){
         executeCallbacks(req, res, next);
@@ -118,23 +151,53 @@ struct ArduinoExpressRouter: public Callback{
 
     int _currentCallback = 0;
 
+    // void addRouteCallback(RouteCallback& callback)
+    // adds a new callback to _routeCallbacks.
+    // This also calls addAllCallbacks() to add the callback to _allCallbacks
     void addRouteCallback(const RouteCallback& );
+
+    // void addAllCallback(Callback* callback)
+    // adds a new callback to _allCallbacks
     void addAllCallback(Callback* );
 
-    bool match(const String&, const HTTP_Request&) const;
-    virtual void executeNext(const String&, HTTP_Request&, HTTP_Response&);
-    virtual void execute(const String&, HTTP_Request&, HTTP_Response&, Next); // if route prefix matches (or is empty), execute middleswares, callbacks
+    // bool match (prefix, req)
+    // returns true if the request's route matches (prefix + this router's prefix)
+    // This allows a router to be used in another router - the root app is also a router
+    bool match(const String&, const Req&) const;
+
+    // void executeNext(prefix, req, res)
+    // executes the next callback in the callback chain
+    virtual void executeNext(const String&, Req&, Res&);
+
+    // void execute(prefix, req, res, next)
+    // executes all the middlewares and callbacks on this router if the prefix matches
+    virtual void execute(const String&, Req&, Res&, Next);
 
   public:
-    void get(const String&, void *(*)(HTTP_Request&, HTTP_Response&));
-    void get(const String&, void *(*)(HTTP_Request&, HTTP_Response&), void *(*)(HTTP_Request&, HTTP_Response&));
-    void post(const String&, void *(*)(HTTP_Request&, HTTP_Response&));
-    void post(const String&, void *(*)(HTTP_Request&, HTTP_Response&), void *(*)(HTTP_Request&, HTTP_Response&));
+    // Adds a RouteCallback with the HTTP GET method to the router
+    // no middleware is added to the callback
+    void get(const String&, void *(*)(Req&, Res&));
+
+    // Adds a RouteCallback with the HTTP GET method to the router
+    void get(const String&, void *(*)(Req&, Res&), void *(*)(Req&, Res&));
+    
+    // Adds a RouteCallback with the HTTP POST method to the router
+    // no middleware is added to this callback
+    void post(const String&, void *(*)(Req&, Res&));
+
+    // Adds a RouteCallback with the HTTP POST method to the router
+    void post(const String&, void *(*)(Req&, Res&), void *(*)(Req&, Res&));
 
     void setRoutePrefix(const String& prefix) {this->_routePrefix = prefix;}
-    virtual void use(const String&, void *(*)(HTTP_Request&, HTTP_Response&, Next));
-    virtual void use(void *(*)(HTTP_Request&, HTTP_Response&, Next));
+
+    // adds a middleware to the router on the specified path
+    virtual void use(const String&, void *(*)(Req&, Res&, Next));
+
+    // adds a middleware to the router at the root of the router. 
+    // i.e. all request to this router will go through it
+    virtual void use(void *(*)(Req&, Res&, Next));
 };
+// FIXME: add functionality to add router objects to the router
 
 
 struct ArduinoExpress : public ArduinoExpressRouter
@@ -156,13 +219,23 @@ struct ArduinoExpress : public ArduinoExpressRouter
 
   public:
     // Pass a callback function to perform tasks at the end of each ArduinoExpress pass
-    void listen(int port, std::function<void()> callback);
+    void listen(int port, std::function<void()> callback); // iterate_all option: default False || add express callback
+
+    // add a router on the specified path
     void use(const String&, ArduinoExpressRouter* );
+    
+    // add a router on the root path
     void use(ArduinoExpressRouter* );
     
-    void use(const String &path, void *(*callback)(HTTP_Request&, HTTP_Response&, Next)) {ArduinoExpressRouter::use(path, callback);}
-    void use(void *(*callback)(HTTP_Request&, HTTP_Response&, Next)) {ArduinoExpressRouter::use(callback);}
+    // add a callback on the specified path
+    void use(const String &path, void *(*callback)(HTTP_Request&, HTTP_Response&, Next)) 
+    {ArduinoExpressRouter::use(path, callback);}
+
+    // add a callback on the root path
+    void use(void *(*callback)(HTTP_Request&, HTTP_Response&, Next)) 
+    {ArduinoExpressRouter::use(callback);}
     
+    // creates and return a ArduinoExpressRouter object
     static ArduinoExpressRouter Router() {return ArduinoExpressRouter();}
   
 };
