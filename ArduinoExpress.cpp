@@ -42,11 +42,11 @@ bool RouteCallback::match(const String &prefix, const HTTP_Request &req) const
 
 void RouteCallback::execute(const String &prefix, HTTP_Request &req, HTTP_Response &res, Next next)
 {
-  Serial.println(_path + "got request");
+  logdebug(_path + "got request");
   // If request is matched, the callback is executed and the callback chain is broken
   // else, the next callback is called
   if(match(prefix, req)){
-    Serial.println(_path + "matched request");
+    logdebug(_path + "matched request");
     executeCallbacks(req, res);
   } else {
     next();
@@ -113,7 +113,7 @@ void ArduinoExpressRouter::executeNext(const String& prefix, HTTP_Request &req, 
 {
   if(_currentCallback < _allCallbacks.size())
   {
-    Serial.println("Calling callback " + String(_currentCallback));
+    logdebug("Calling callback " + String(_currentCallback));
     _allCallbacks[_currentCallback++]->execute(prefix + this->_routePrefix, req, res, [&](){
       executeNext(prefix, req, res);
     });
@@ -196,7 +196,7 @@ void ArduinoExpress::execute()
       
       // Disconnect the client
       client.stop();
-      Serial.println("[Client disconnected]");
+      loginfo("[Client disconnected]");
     }
 
 }

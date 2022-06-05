@@ -38,19 +38,29 @@ String HTTPStatusText(int status)
   return "Unknown";
 }
 
-// void logErr(const String& err)
-// {
-//   Serial.println(String("ERR: ") + err);
-// }
-// void logWarn(const String& warning)
-// {
-//   Serial.println(String("WARN: ") + warning);
-// }
-// void debug(const String& debugString)
-// {
-//   Serial.println(String("DEBUG: ") + debugString);
-// }
-// void logInfo(const String& info)
-// {
-//   Serial.println(String("INFO: ") + info);
-// }
+
+// ----------- LOGGING ------------
+void logdebug(const String& debugString)
+{
+  Serial.println(String("DEBUG: ") + debugString);
+}
+
+void loginfo(const String& info)
+{
+  Serial.println(String("INFO: ") + info);
+}
+
+void logwarn(const String& warning)
+{
+  Serial.println(String("WARN: ") + warning);
+}
+
+void logerr(const String& err)
+{
+  Serial.println(String("ERROR: ") + err);
+}
+
+void logfatal(const String& info)
+{
+  Serial.println(String("FATAL: ") + info);
+}

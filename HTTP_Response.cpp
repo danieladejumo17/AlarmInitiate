@@ -112,7 +112,7 @@ bool HTTP_Response::send()
   // SEND THE RESPONSE
   this->_client->print(response);
   this->_responseSent = true;
-  Serial.println(response);
+  loginfo("RESPONSE START <=====\n" + response + "\nRESPONSE END =====>");
 
   return true;
 }

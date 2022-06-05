@@ -47,12 +47,12 @@ void setup()
   });
 
   app.get("/", [](Req &req, Res &res)->void*{
-    Serial.println("Root got request");
+    logdebug("Root got request");
     res.send(200, "text/plain", "Hello World!");
   });
 
   app.post("/raise", [](Req &req, Res &res)->void*{
-    Serial.println("Raise got request");
+    logdebug("Raise got request");
     res.send(200, "text/plain", "Hello AlarmInitiate!");
   });
 

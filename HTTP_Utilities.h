@@ -29,11 +29,12 @@ struct HTTP_Param{
 
 String HTTPStatusText(int status);
 
-// void logErr(const String& err);
-// void logWarn(const String& warning);
-// void debug(const String& debugString);
-// void logInfo(const String& info);
 
-
+// ---------- LOGGING ---------------
+void logdebug(const String& message);
+void loginfo(const String& message);
+void logerr(const String& message);
+void logwarn(const String& message);
+void logfatal(const String& message);
 
 #endif
